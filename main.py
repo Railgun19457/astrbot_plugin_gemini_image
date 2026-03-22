@@ -272,7 +272,10 @@ class GeminiImagePlugin(Star):
         self.max_retry_attempts = generate_config.get("max_retry_attempts", 3)
         self.safety_settings = generate_config.get("safety_settings", "BLOCK_NONE")
         self.max_image_size_mb = generate_config.get("max_image_size_mb", 10)
+        self.enable_rate_limit = generate_config.get("enable_rate_limit", True)
         self.max_requests_per_minute = generate_config.get("max_requests_per_minute", 3)
+        self.max_requests_per_hour = generate_config.get("max_requests_per_hour", 30)
+        self.max_requests_per_day = generate_config.get("max_requests_per_day", 100)
 
         # 验证并发配置
         max_concurrent = generate_config.get(
@@ -293,7 +296,6 @@ class GeminiImagePlugin(Star):
         self.perm_groups = set(perm_conf.get("groups", []))
         self.perm_no_permission_reply = perm_conf.get("no_permission_reply", "❌ 您没有权限使用此功能")
         self.perm_silent = perm_conf.get("silent_on_no_permission", False)
-        self.perm_intercept_keywords = perm_conf.get("intercept_keywords", ["画", "绘", "图", "draw", "image", "photo", "generate", "生图"])
 
     def _check_permission(self, user_id: str, group_id: str = "") -> bool:
         """检查权限"""
@@ -418,55 +420,32 @@ class GeminiImagePlugin(Star):
         default_base = "https://generativelanguage.googleapis.com"
         self.base_url = self._clean_base_url(api_config.get("base_url", default_base))
 
-    def _check_rate_limit(self, user_id: str) -> bool:
+    def _check_rate_limit(self, user_id: str) -> tuple[bool, str]:
         """检查用户请求频率是否超限"""
+        if not getattr(self, "enable_rate_limit", True):
+            return True, ""
+
         now = time.time()
         timestamps = self.user_request_timestamps.setdefault(user_id, [])
 
-        # 移除一分钟前的记录
-        valid_timestamps = [t for t in timestamps if now - t < 60]
+        # 保留最近一天的记录即可（24小时 = 86400秒）
+        valid_timestamps = [t for t in timestamps if now - t < 86400]
         self.user_request_timestamps[user_id] = valid_timestamps
 
-        if len(valid_timestamps) >= self.max_requests_per_minute:
-            return False
+        # 统计分钟、小时、天的请求数
+        count_minute = sum(1 for t in valid_timestamps if now - t < 60)
+        count_hour = sum(1 for t in valid_timestamps if now - t < 3600)
+        count_day = len(valid_timestamps)
+
+        if count_minute >= getattr(self, "max_requests_per_minute", 3):
+            return False, f"❌ 请求过于频繁，请稍后再试 (每分钟限 {self.max_requests_per_minute} 次)"
+        if count_hour >= getattr(self, "max_requests_per_hour", 30):
+            return False, f"❌ 请求过于频繁，请稍后再试 (每小时限 {self.max_requests_per_hour} 次)"
+        if count_day >= getattr(self, "max_requests_per_day", 100):
+            return False, f"❌ 请求过于频繁，请明天再试 (每天限 {self.max_requests_per_day} 次)"
 
         valid_timestamps.append(now)
-        return True
-
-    @filter.event_message_type(EventMessageType.ALL)
-    async def intercept_drawing_request(self, event: AstrMessageEvent):
-        "拦截无权限用户的画图请求，防止触发 LLM"
-        message_str = event.message_str or ""
-        if not message_str:
-            return
-
-        # 获取用户信息
-        user_id = event.get_sender_id()
-        if not user_id and event.message_obj and event.message_obj.sender:
-            user_id = event.message_obj.sender.user_id
-        if not user_id:
-            user_id = event.unified_msg_origin
-        user_id = str(user_id).strip()
-        group_id = event.message_obj.group_id or ""
-
-        # 检查权限
-        if self._check_permission(user_id, group_id):
-            return  # 有权限，放行
-
-        # 无权限，检查是否包含拦截关键词
-        if not self.perm_intercept_keywords:
-            return
-
-        for keyword in self.perm_intercept_keywords:
-            if keyword in message_str:
-                logger.info(f"[Gemini Image] Intercepting unauthorized drawing request from {user_id}: {message_str}")
-                
-                # 拦截
-                event.stop_event() # 停止事件传播
-                
-                if not self.perm_silent:
-                    yield event.plain_result(self.perm_no_permission_reply)
-                return
+        return True, ""
 
     @filter.command("生图")
     async def generate_image_command(self, event: AstrMessageEvent):
@@ -480,10 +459,9 @@ class GeminiImagePlugin(Star):
                 yield event.plain_result(self.perm_no_permission_reply)
             return
 
-        if not self._check_rate_limit(user_id):
-            yield event.plain_result(
-                f"❌ 请求过于频繁，请稍后再试 (每分钟限 {self.max_requests_per_minute} 次)"
-            )
+        is_allowed, rate_msg = self._check_rate_limit(user_id)
+        if not is_allowed:
+            yield event.plain_result(rate_msg)
             return
 
         masked_uid = (

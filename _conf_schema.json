@@ -130,11 +130,29 @@
         "type": "int",
         "default": 3
       },
+      "enable_rate_limit": {
+        "description": "启用速率限制",
+        "hint": "开启后，将对用户的生图请求进行频率限制",
+        "type": "bool",
+        "default": true
+      },
       "max_requests_per_minute": {
         "description": "每分钟最大请求数",
         "hint": "单个用户每分钟最多可以发起的图片生成请求数",
         "type": "int",
         "default": 3
+      },
+      "max_requests_per_hour": {
+        "description": "每小时最大请求数",
+        "hint": "单个用户每小时最多可以发起的图片生成请求数",
+        "type": "int",
+        "default": 30
+      },
+      "max_requests_per_day": {
+        "description": "每天最大请求数",
+        "hint": "单个用户每天最多可以发起的图片生成请求数",
+        "type": "int",
+        "default": 100
       },
       "max_image_size_mb": {
         "description": "最大图片大小(MB)",
@@ -203,21 +221,6 @@
         "type": "bool",
         "default": false,
         "hint": "开启后，当用户没有权限时将不回复任何消息"
-      },
-      "intercept_keywords": {
-        "description": "拦截关键词",
-        "type": "list",
-        "default": [
-          "画",
-          "绘",
-          "图",
-          "draw",
-          "image",
-          "photo",
-          "generate",
-          "生图"
-        ],
-        "hint": "当无权限用户的消息包含这些词时，直接拦截不发送给 LLM。留空则不启用关键词拦截。"
       }
     }
   }
