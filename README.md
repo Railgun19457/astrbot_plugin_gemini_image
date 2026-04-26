@@ -4,6 +4,12 @@
 
 ### 基于 Gemini 模型的图像生成插件，支持文生图和图生图，支持自然语言调用和预设提示词
 
+> [!warning]
+> 本插件已停止维护！！！  
+> 请使用新的生图插件 `astrbot_plugin_image_generation` (通用生图)  
+> 新插件继承了本插件全部功能且更进一步  
+> [GitHub链接](https://github.com/railgun19457/astrbot_plugin_image_generation)  
+
 ***
 > [!note]
 > 本插件需要 AstrBot 版本 >= v4.5.7
