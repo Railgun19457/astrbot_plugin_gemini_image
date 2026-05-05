@@ -107,28 +107,34 @@ class GeminiImageGenerationTool(FunctionTool[AstrAgentContext]):
             user_id = event.message_obj.sender.user_id
         if not user_id:
             user_id = event.unified_msg_origin
-        
+
         user_id = str(user_id).strip()
         group_id = event.message_obj.group_id or ""
 
         # DEBUG: Log the values used for permission check
-        logger.info(f"[Gemini Permission] Tool Call - User: {user_id}, Group: {group_id}")
+        logger.info(
+            f"[Gemini Permission] Tool Call - User: {user_id}, Group: {group_id}"
+        )
         if hasattr(plugin, "perm_users"):
-             logger.info(f"[Gemini Permission] Config - Mode: {plugin.perm_mode}, Users: {plugin.perm_users}")
+            logger.info(
+                f"[Gemini Permission] Config - Mode: {plugin.perm_mode}, Users: {plugin.perm_users}"
+            )
 
         # Permission Check
         if hasattr(plugin, "_check_permission"):
             if not plugin._check_permission(user_id, group_id):
                 logger.warning(f"[Gemini Permission] DENIED for User: {user_id}")
-                                # SYSTEM STOP INSTRUCTION
+                # SYSTEM STOP INSTRUCTION
                 if plugin.perm_silent:
                     return "SYSTEM_NOTIFICATION: Permission denied. User unauthorized. EXECUTION STOPPED. Do NOT generate image. Do NOT reply to the user. END."
                 else:
-                    return f"SYSTEM_NOTIFICATION: Permission denied. EXECUTION STOPPED. Reply to user: '{plugin.perm_no_permission_reply}'" 
+                    return f"SYSTEM_NOTIFICATION: Permission denied. EXECUTION STOPPED. Reply to user: '{plugin.perm_no_permission_reply}'"
             else:
                 logger.info(f"[Gemini Permission] ALLOWED for User: {user_id}")
         else:
-            logger.error("[Gemini Permission] Plugin instance missing _check_permission method")
+            logger.error(
+                "[Gemini Permission] Plugin instance missing _check_permission method"
+            )
 
         if not plugin.generator.api_keys:
             return "❌ 未配置 API Key，无法生成图片"
@@ -160,7 +166,9 @@ class GeminiImageGenerationTool(FunctionTool[AstrAgentContext]):
                     avatar_data = await plugin.get_avatar(user_id)
                     if avatar_data:
                         images_data.append((avatar_data, "image/jpeg"))
-                        logger.info(f"[Gemini Image] 已添加用户 {user_id} 的头像作为参考图片")
+                        logger.info(
+                            f"[Gemini Image] 已添加用户 {user_id} 的头像作为参考图片"
+                        )
                     else:
                         logger.warning(f"[Gemini Image] 无法获取用户 {user_id} 的头像")
 
@@ -288,13 +296,15 @@ class GeminiImagePlugin(Star):
         # 顶层配置
         self.enable_llm_tool = self.config.get("enable_llm_tool", True)
         self.presets = self._load_presets()
-        
+
         # 权限配置
         perm_conf = self.config.get("permission_config", {})
         self.perm_mode = perm_conf.get("mode", "disable")
         self.perm_users = set(perm_conf.get("users", []))
         self.perm_groups = set(perm_conf.get("groups", []))
-        self.perm_no_permission_reply = perm_conf.get("no_permission_reply", "❌ 您没有权限使用此功能")
+        self.perm_no_permission_reply = perm_conf.get(
+            "no_permission_reply", "❌ 您没有权限使用此功能"
+        )
         self.perm_silent = perm_conf.get("silent_on_no_permission", False)
 
     def _check_permission(self, user_id: str, group_id: str = "") -> bool:
@@ -305,16 +315,18 @@ class GeminiImagePlugin(Star):
 
         if mode == "disable":
             return True
-            
+
         user_id = str(user_id).strip()
         group_id = str(group_id).strip()
-        
+
         # 统一转为字符串集合进行比对，去除空格
         limit_users = {str(u).strip() for u in perm_conf.get("users", [])}
         limit_groups = {str(g).strip() for g in perm_conf.get("groups", [])}
-        
-        logger.info(f"[Gemini Image] Perm Check: mode={mode}, user={user_id}, lists={limit_users}, groups={limit_groups}, group_id={group_id}")
-        
+
+        logger.info(
+            f"[Gemini Image] Perm Check: mode={mode}, user={user_id}, lists={limit_users}, groups={limit_groups}, group_id={group_id}"
+        )
+
         if mode == "blacklist":
             # 黑名单模式: 在名单内则禁止
             if user_id in limit_users:
@@ -322,7 +334,7 @@ class GeminiImagePlugin(Star):
             if group_id and group_id in limit_groups:
                 return False
             return True
-            
+
         elif mode == "whitelist":
             # 白名单模式: 在名单内才允许
             if user_id in limit_users:
@@ -331,7 +343,7 @@ class GeminiImagePlugin(Star):
                 return True
             # 不在白名单中 -> 禁止
             return False
-            
+
         return True
 
     def _clean_base_url(self, url: str) -> str:
@@ -438,11 +450,20 @@ class GeminiImagePlugin(Star):
         count_day = len(valid_timestamps)
 
         if count_minute >= getattr(self, "max_requests_per_minute", 3):
-            return False, f"❌ 请求过于频繁，请稍后再试 (每分钟限 {self.max_requests_per_minute} 次)"
+            return (
+                False,
+                f"❌ 请求过于频繁，请稍后再试 (每分钟限 {self.max_requests_per_minute} 次)",
+            )
         if count_hour >= getattr(self, "max_requests_per_hour", 30):
-            return False, f"❌ 请求过于频繁，请稍后再试 (每小时限 {self.max_requests_per_hour} 次)"
+            return (
+                False,
+                f"❌ 请求过于频繁，请稍后再试 (每小时限 {self.max_requests_per_hour} 次)",
+            )
         if count_day >= getattr(self, "max_requests_per_day", 100):
-            return False, f"❌ 请求过于频繁，请明天再试 (每天限 {self.max_requests_per_day} 次)"
+            return (
+                False,
+                f"❌ 请求过于频繁，请明天再试 (每天限 {self.max_requests_per_day} 次)",
+            )
 
         valid_timestamps.append(now)
         return True, ""
@@ -659,7 +680,7 @@ class GeminiImagePlugin(Star):
         """生图模型管理指令"""
         user_id = str(event.get_sender_id() or event.unified_msg_origin)
         group_id = event.message_obj.group_id or ""
-        
+
         if not self._check_permission(user_id, group_id):
             yield event.plain_result("❌ 您没有权限使用此功能")
             return
@@ -696,7 +717,7 @@ class GeminiImagePlugin(Star):
         """预设管理指令"""
         user_id = str(event.get_sender_id() or event.unified_msg_origin)
         group_id = event.message_obj.group_id or ""
-        
+
         if not self._check_permission(user_id, group_id):
             yield event.plain_result("❌ 您没有权限使用此功能")
             return

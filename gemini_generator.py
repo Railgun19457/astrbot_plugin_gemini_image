@@ -220,6 +220,7 @@ class GeminiImageGenerator:
     def _log_payload(self, payload: dict, provider: str):
         """记录请求负载，隐藏过长的 Base64 数据"""
         try:
+
             def truncate(obj):
                 if isinstance(obj, dict):
                     return {k: truncate(v) for k, v in obj.items()}
